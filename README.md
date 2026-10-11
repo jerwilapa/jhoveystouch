@@ -25,7 +25,7 @@ A bilingual (English/Arabic) appointment-request website for Jhovey's Touch, bui
 
    For Vercel, paste the private key with its line breaks. If your environment stores escaped newlines, the server converts `\n` into real line breaks.
 
-Appointment requests are stored in the `appointmentRequests` collection with `status: "pending"` and a server-generated creation time. Requests are not bookings until the salon confirms availability with the customer.
+Appointment requests are stored in the `appointmentRequests` collection with `status: "pending"` and a server-generated creation time. Each request includes a `services` array and a comma-separated `service` field for compatibility with older consumers. Requests are not bookings until the salon confirms availability with the customer.
 
 ## Deploy to Vercel
 

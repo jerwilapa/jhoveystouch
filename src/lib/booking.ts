@@ -2,6 +2,7 @@ export type AppointmentRequest = {
   name: string;
   phone: string;
   service: string;
+  services: string[];
   date: string;
   time: string;
   language: "en" | "ar";
@@ -48,7 +49,12 @@ export function validateAppointmentRequest(value: unknown): ValidationResult {
 
   const name = typeof input.name === "string" ? input.name.trim() : "";
   const phone = typeof input.phone === "string" ? input.phone.trim() : "";
-  const service = typeof input.service === "string" ? input.service.trim() : "";
+  const services = Array.isArray(input.services)
+    ? input.services.map((service) => (typeof service === "string" ? service.trim() : ""))
+    : typeof input.service === "string"
+      ? [input.service.trim()]
+      : [];
+  const service = services.join(", ");
   const date = typeof input.date === "string" ? input.date : "";
   const time = typeof input.time === "string" ? input.time : "";
 
@@ -58,7 +64,12 @@ export function validateAppointmentRequest(value: unknown): ValidationResult {
   if (!PHONE_PATTERN.test(phone)) {
     return { valid: false, message: error.phone };
   }
-  if (service.length < 2 || service.length > 100) {
+  if (
+    services.length < 1 ||
+    services.length > 19 ||
+    services.some((selected) => selected.length < 2 || selected.length > 100) ||
+    new Set(services).size !== services.length
+  ) {
     return { valid: false, message: error.service };
   }
   if (!DATE_PATTERN.test(date)) {
@@ -99,6 +110,6 @@ export function validateAppointmentRequest(value: unknown): ValidationResult {
 
   return {
     valid: true,
-    data: { name, phone, service, date, time, language },
+    data: { name, phone, service, services, date, time, language },
   };
 }
