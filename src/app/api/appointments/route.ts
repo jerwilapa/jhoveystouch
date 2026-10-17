@@ -5,6 +5,7 @@ import {
   appointmentTimesOverlap,
   timeToMinutes,
 } from "@/lib/appointment-schedule";
+import { sendAppointmentNotification } from "@/lib/appointment-notification";
 import { validateAppointmentRequest } from "@/lib/booking";
 
 export const runtime = "nodejs";
@@ -71,6 +72,15 @@ export async function POST(request: Request) {
               : "That time overlaps another request. Please choose another time.",
         },
         { status: 409 },
+      );
+    }
+
+    try {
+      await sendAppointmentNotification(result.data);
+    } catch (error) {
+      console.error(
+        "Appointment request was saved, but its email notification failed:",
+        error,
       );
     }
 
