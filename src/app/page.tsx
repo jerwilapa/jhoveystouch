@@ -1,6 +1,14 @@
 "use client";
 
+import Image from "next/image";
 import { FormEvent, useEffect, useState } from "react";
+import {
+  appointmentTimesOverlap,
+  CLOSING_MINUTES,
+  OPENING_MINUTES,
+  timeToMinutes,
+} from "@/lib/appointment-schedule";
+import { getAppointmentDuration, serviceDurations } from "@/lib/service-durations";
 
 type Language = "en" | "ar";
 
@@ -38,6 +46,9 @@ const copy = {
     summaryTitle: "Your visit at a glance",
     summaryName: "Booking for",
     summaryService: "Looking for",
+    summaryDuration: "Estimated duration",
+    durationHours: "hr",
+    durationMinutes: "min",
     summaryDate: "Preferred date",
     summaryTime: "Preferred time",
     summaryEmpty: "Your selections will appear here.",
@@ -45,8 +56,12 @@ const copy = {
     nextMonth: "Next month",
     today: "Today",
     dateRequired: "Please choose a date.",
-    quickTimes: "Quick time picks",
-    timeHint: "Choose a suggested time or enter any time you prefer.",
+    timeRequired: "Please choose a time.",
+    quickTimes: "Available times",
+    timeHint: "Choose an hourly start time. Unavailable times are disabled.",
+    availabilityLoading: "Loading available times...",
+    availabilityError: "Available times could not be loaded. Please try again.",
+    timeUnavailable: "That time overlaps another request or extends past closing. Please choose another.",
     name: "Your name",
     namePlaceholder: "e.g. Sara Ahmed",
     phone: "Phone number",
@@ -101,6 +116,9 @@ const copy = {
     summaryTitle: "ملخص زيارتكِ",
     summaryName: "الحجز لـ",
     summaryService: "الخدمة المطلوبة",
+    summaryDuration: "المدة التقديرية",
+    durationHours: "س",
+    durationMinutes: "د",
     summaryDate: "التاريخ المناسب",
     summaryTime: "الوقت المناسب",
     summaryEmpty: "ستظهر اختياراتكِ هنا.",
@@ -108,8 +126,12 @@ const copy = {
     nextMonth: "الشهر التالي",
     today: "اليوم",
     dateRequired: "يرجى اختيار التاريخ.",
-    quickTimes: "أوقات مقترحة",
-    timeHint: "اختاري وقتًا مقترحًا أو أدخلي الوقت الذي يناسبكِ.",
+    timeRequired: "يرجى اختيار الوقت.",
+    quickTimes: "الأوقات المتاحة",
+    timeHint: "اختاري وقت بدء بالساعة. الأوقات غير المتاحة معطّلة.",
+    availabilityLoading: "جارٍ تحميل الأوقات المتاحة...",
+    availabilityError: "تعذّر تحميل الأوقات المتاحة. يرجى المحاولة مرة أخرى.",
+    timeUnavailable: "يتداخل هذا الوقت مع طلب آخر أو يتجاوز موعد الإغلاق. يرجى اختيار وقت آخر.",
     name: "الاسم",
     namePlaceholder: "مثال: سارة أحمد",
     phone: "رقم الهاتف",
@@ -134,8 +156,29 @@ const copy = {
 
 type ServiceOption = { en: string; ar: string };
 type ServiceGroup = { key: "hair" | "eyes" | "nails"; services: ServiceOption[] };
+type ReservedAppointment = { date: string; time: string; durationMinutes: number | null };
 
-const quickTimePicks = ["09:00", "12:00", "15:00", "18:00"];
+const availableTimes = Array.from(
+  { length: (CLOSING_MINUTES - OPENING_MINUTES) / 60 + 1 },
+  (_, index) => `${String(OPENING_MINUTES / 60 + index).padStart(2, "0")}:00`,
+);
+
+function isAppointmentTimeUnavailable(
+  date: string,
+  time: string,
+  durationMinutes: number,
+  appointments: ReservedAppointment[],
+) {
+  const startMinutes = timeToMinutes(time);
+  if (startMinutes + durationMinutes > CLOSING_MINUTES) return true;
+
+  return appointments.some((appointment) => {
+    if (appointment.date !== date) return false;
+    const bookedStart = timeToMinutes(appointment.time);
+    const bookedDuration = appointment.durationMinutes ?? durationMinutes;
+    return appointmentTimesOverlap(startMinutes, durationMinutes, bookedStart, bookedDuration);
+  });
+}
 
 function dateKey(year: number, month: number, day: number) {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -191,54 +234,6 @@ function FlowerMark() {
   );
 }
 
-function WomanProfileMark() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 72 72" fill="none">
-      <path
-        d="M48.3 8.6c-12.5-2.9-25.3 3.4-30.6 14.7-3.4 7.1-1.7 12.7-5 18.2-3.2 5.4-1.4 11 4.4 13.2-1.6 4.2-.2 8 3.8 9.8"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2.5"
-      />
-      <path
-        d="M46.7 17.1c7.2.6 11.8 5.4 11.8 12.1 0 2.8 1.1 4.8 3.6 7.1 1.2 1.1.9 2.4-.8 3.3l-2.7 1.5 1.7 1.9c1 1.1.7 2.6-.5 3.6l-1.6 1.4c-.5 4.7-3.5 7.6-9.1 8.5L48 67.7M34.1 57.7c-4.5-4.1-6.5-9.7-6-16.3.7-10.7 7.4-19.7 18.6-23.3"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
-      />
-      <path
-        d="M18.6 35.9c2.8-14 12.1-22 23.8-21.9 5.2 0 9.7 1.8 13.4 5.4-7-2.7-13.3-1.6-18.4 2.8-4.3 3.7-6.6 8.7-11.1 12.1"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2.5"
-      />
-      <path
-        d="M24.6 61.8c2.9 4 7.2 7.2 13 9.6m10.6-6.1c5.8-1.4 9-5.2 9.6-11.4"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2.1"
-      />
-      <path
-        d="M25.1 27.4c4.4-6.4 10.6-10.1 18.1-10.3"
-        stroke="#8ebeb8"
-        strokeLinecap="round"
-        strokeWidth="1.2"
-      />
-      <circle cx="53.2" cy="47.1" r="1.7" fill="#c98c82" />
-      <path
-        d="M34.1 57.7c3.1 2.5 7.1 3.5 11.6 2.7"
-        stroke="#8ebeb8"
-        strokeLinecap="round"
-        strokeWidth="1.2"
-      />
-    </svg>
-  );
-}
-
 function ArrowIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 20 20" fill="none">
@@ -256,6 +251,9 @@ export default function Home() {
   const [today, setToday] = useState("");
   const [currentTime, setCurrentTime] = useState("");
   const [calendarMonth, setCalendarMonth] = useState("");
+  const [availabilityByMonth, setAvailabilityByMonth] = useState<
+    Record<string, { status: "loading" | "loaded" | "error"; slots: ReservedAppointment[] }>
+  >({});
   const [details, setDetails] = useState({
     name: "",
     phone: "",
@@ -274,6 +272,63 @@ export default function Home() {
   useEffect(() => {
     if (step === 2) document.getElementById("date-picker-title")?.focus();
   }, [step]);
+
+  useEffect(() => {
+    if (!calendarMonth) return;
+
+    let active = true;
+    setAvailabilityByMonth((current) => ({
+      ...current,
+      [calendarMonth]: { status: "loading", slots: current[calendarMonth]?.slots ?? [] },
+    }));
+
+    async function loadAvailability() {
+      try {
+        const response = await fetch(
+          `/api/appointments/availability?month=${encodeURIComponent(calendarMonth)}`,
+        );
+        const result = (await response.json()) as { appointments?: unknown; message?: string };
+        if (
+          !response.ok ||
+          !Array.isArray(result.appointments) ||
+          !result.appointments.every(
+            (appointment) =>
+              typeof appointment === "object" &&
+              appointment !== null &&
+              "date" in appointment &&
+              typeof appointment.date === "string" &&
+              "time" in appointment &&
+              typeof appointment.time === "string" &&
+              "durationMinutes" in appointment &&
+              (typeof appointment.durationMinutes === "number" ||
+                appointment.durationMinutes === null),
+          )
+        ) {
+          throw new Error(result.message || "Invalid availability response.");
+        }
+        const appointments = result.appointments as ReservedAppointment[];
+        if (active) {
+          setAvailabilityByMonth((current) => ({
+            ...current,
+            [calendarMonth]: { status: "loaded", slots: appointments },
+          }));
+        }
+      } catch (loadError) {
+        if (active) {
+          console.error("Unable to load appointment availability:", loadError);
+          setAvailabilityByMonth((current) => ({
+            ...current,
+            [calendarMonth]: { status: "error", slots: [] },
+          }));
+        }
+      }
+    }
+
+    void loadAvailability();
+    return () => {
+      active = false;
+    };
+  }, [calendarMonth]);
 
   useEffect(() => {
     const riyadhNow = new Date();
@@ -314,9 +369,38 @@ export default function Home() {
   }
 
   function selectDate(date: string) {
-    setDetails((current) => ({ ...current, date }));
+    setDetails((current) => ({
+      ...current,
+      date,
+      time:
+        current.time && isTimeUnavailable(date, current.time)
+          ? ""
+          : current.time,
+    }));
     setError("");
   }
+
+  function isTimeUnavailable(date: string, time: string) {
+    const durationMinutes = getAppointmentDuration(details.services) ?? 0;
+    const appointments = availabilityByMonth[date.slice(0, 7)]?.slots ?? [];
+    return isAppointmentTimeUnavailable(date, time, durationMinutes, appointments);
+  }
+
+  useEffect(() => {
+    if (!details.date || !details.time) return;
+    const monthAvailability = availabilityByMonth[details.date.slice(0, 7)];
+    if (
+      monthAvailability?.status === "loaded" &&
+      isAppointmentTimeUnavailable(
+        details.date,
+        details.time,
+        getAppointmentDuration(details.services) ?? 0,
+        monthAvailability.slots,
+      )
+    ) {
+      setDetails((current) => ({ ...current, time: "" }));
+    }
+  }, [availabilityByMonth, details.date, details.services, details.time]);
 
   function changeLanguage(nextLanguage: Language) {
     setLanguage(nextLanguage);
@@ -399,9 +483,19 @@ export default function Home() {
     const [hour, minute] = time.split(":").map(Number);
     return new Intl.DateTimeFormat(language === "ar" ? "ar-SA" : "en-US", {
       hour: "numeric",
-      minute: "2-digit",
       timeZone: "UTC",
     }).format(new Date(Date.UTC(2024, 0, 1, hour, minute)));
+  }
+
+  function formatDuration(durationMinutes: number) {
+    const hours = Math.floor(durationMinutes / 60);
+    const minutes = durationMinutes % 60;
+    return [
+      hours > 0 ? `${hours} ${t.durationHours}` : "",
+      minutes > 0 ? `${minutes} ${t.durationMinutes}` : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -432,6 +526,19 @@ export default function Home() {
       document.querySelector<HTMLButtonElement>(".calendar-day:not(:disabled)")?.focus();
       return;
     }
+    if (!details.time) {
+      setError(t.timeRequired);
+      return;
+    }
+    if (isTimeUnavailable(details.date, details.time)) {
+      setDetails((current) => ({ ...current, time: "" }));
+      setError(t.timeUnavailable);
+      return;
+    }
+    if (availabilityByMonth[details.date.slice(0, 7)]?.status !== "loaded") {
+      setError(t.availabilityError);
+      return;
+    }
 
     setSubmitting(true);
     const appointment = {
@@ -439,6 +546,7 @@ export default function Home() {
       phone: details.phone,
       service: details.services.map(getServiceLabel).join(", "),
       services: details.services.map(getServiceLabel),
+      serviceIds: details.services,
       date: details.date,
       time: details.time,
       language,
@@ -468,11 +576,14 @@ export default function Home() {
     <main className="page" id="top" dir={direction}>
       <header className="site-header">
         <a className="brand" href="#top" aria-label="Jhovey's Touch home">
-          <span className="brand-mark"><WomanProfileMark /></span>
-          <span className="brand-name">
-            <span className="brand-script">Jhovey&apos;s Touch</span>
-            <span className="brand-sub">Salon for Women</span>
-          </span>
+          <Image
+            className="brand-logo"
+            src="/jhoveystouchlogo.png"
+            alt="Jhovey's Touch Salon"
+            width={1254}
+            height={1254}
+            priority
+          />
         </a>
         <div className="header-actions">
           <div className="language-switch" aria-label="Choose language">
@@ -634,7 +745,12 @@ export default function Home() {
                                   aria-pressed={isSelected}
                                   onClick={() => toggleService(service)}
                                 >
-                                  <span>{label}</span>
+                                  <span>
+                                    {label}
+                                    <small className="service-option-duration">
+                                      {formatDuration(serviceDurations[service.en])}
+                                    </small>
+                                  </span>
                                   <span className="service-option-action">
                                     {isSelected ? t.selectedService : t.chooseService}
                                     <span aria-hidden="true">{isSelected ? "✓" : "+"}</span>
@@ -736,31 +852,31 @@ export default function Home() {
                       </div>
                     </section>
                     <div className="field">
-                      <label htmlFor="time">{t.time}</label>
-                      <div className="time-input-wrap">
-                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
-                          <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.5" />
-                          <path d="M12 7v5l3.2 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                        </svg>
-                        <input
-                          id="time"
-                          name="time"
-                          type="time"
-                          required
-                          min={details.date === today ? currentTime : undefined}
-                          value={details.time}
-                          onChange={updateDetail}
-                        />
-                      </div>
-                      <p className="time-picker-hint">{t.timeHint}</p>
-                      <div className="time-quick-picks" role="group" aria-label={t.quickTimes}>
-                        {quickTimePicks.map((time) => (
+                      <span className="field-label" id="time-label">{t.time}</span>
+                      <p className="time-picker-hint" aria-live="polite">
+                        {availabilityByMonth[details.date.slice(0, 7)]?.status === "loading"
+                          ? t.availabilityLoading
+                          : availabilityByMonth[details.date.slice(0, 7)]?.status === "error"
+                            ? t.availabilityError
+                            : t.timeHint}
+                      </p>
+                      <div
+                        className="time-quick-picks"
+                        role="group"
+                        aria-labelledby="time-label"
+                        aria-label={t.quickTimes}
+                      >
+                        {availableTimes.map((time) => (
                           <button
                             className={`time-quick-pick${details.time === time ? " time-quick-pick-selected" : ""}`}
                             type="button"
                             key={time}
                             aria-pressed={details.time === time}
-                            disabled={details.date === today && time <= currentTime}
+                            disabled={
+                              availabilityByMonth[details.date.slice(0, 7)]?.status !== "loaded" ||
+                              (details.date === today && time <= currentTime) ||
+                              isTimeUnavailable(details.date, time)
+                            }
                             onClick={() => {
                               setError("");
                               setDetails((current) => ({ ...current, time }));
@@ -794,6 +910,17 @@ export default function Home() {
                       ) : (
                         <strong className="summary-placeholder">{t.summaryEmpty}</strong>
                       )}
+                    </div>
+                    <div className="summary-detail">
+                      <span>{t.summaryDuration}</span>
+                      <strong
+                        className={
+                          details.services.length === 0 ? "summary-placeholder" : undefined
+                        }
+                      >
+                        {formatDuration(getAppointmentDuration(details.services) ?? 0) ||
+                          t.summaryEmpty}
+                      </strong>
                     </div>
                     <div className="summary-detail">
                       <span>{t.summaryDate}</span>

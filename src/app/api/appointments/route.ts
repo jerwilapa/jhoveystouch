@@ -1,6 +1,10 @@
 import { FieldValue } from "firebase-admin/firestore";
 import { NextResponse } from "next/server";
 import { getAdminFirestore } from "@/lib/firebase-admin";
+import {
+  appointmentTimesOverlap,
+  timeToMinutes,
+} from "@/lib/appointment-schedule";
 import { validateAppointmentRequest } from "@/lib/booking";
 
 export const runtime = "nodejs";
@@ -22,11 +26,55 @@ export async function POST(request: Request) {
   }
 
   try {
-    const doc = await getAdminFirestore()
-      .collection("appointmentRequests")
-      .add({ ...result.data, status: "pending", createdAt: FieldValue.serverTimestamp() });
+    const firestore = getAdminFirestore();
+    const requests = firestore.collection("appointmentRequests");
+    const requestDocument = requests.doc();
+    const hasConflict = await firestore.runTransaction(async (transaction) => {
+      const sameDate = await transaction.get(
+        requests.where("date", "==", result.data.date),
+      );
+      const requestedStart = timeToMinutes(result.data.time);
+      const conflict = sameDate.docs.some((appointment) => {
+        const time = appointment.get("time");
+        if (typeof time !== "string" || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
+          return false;
+        }
+        const duration = appointment.get("durationMinutes");
+        const existingDuration =
+          typeof duration === "number" && Number.isFinite(duration) && duration > 0
+            ? duration
+            : result.data.durationMinutes;
+        return appointmentTimesOverlap(
+          requestedStart,
+          result.data.durationMinutes,
+          timeToMinutes(time),
+          existingDuration,
+        );
+      });
 
-    return NextResponse.json({ requestId: doc.id }, { status: 201 });
+      if (!conflict) {
+        transaction.create(requestDocument, {
+          ...result.data,
+          status: "pending",
+          createdAt: FieldValue.serverTimestamp(),
+        });
+      }
+      return conflict;
+    });
+
+    if (hasConflict) {
+      return NextResponse.json(
+        {
+          message:
+            result.data.language === "ar"
+              ? "يتداخل هذا الوقت مع طلب آخر. يرجى اختيار وقت آخر."
+              : "That time overlaps another request. Please choose another time.",
+        },
+        { status: 409 },
+      );
+    }
+
+    return NextResponse.json({ requestId: requestDocument.id }, { status: 201 });
   } catch (error) {
     console.error("Unable to save appointment request:", error);
     return NextResponse.json(

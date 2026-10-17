@@ -1,8 +1,17 @@
+import { getAppointmentDuration, serviceDurations } from "@/lib/service-durations";
+import {
+  CLOSING_MINUTES,
+  OPENING_MINUTES,
+  timeToMinutes,
+} from "@/lib/appointment-schedule";
+
 export type AppointmentRequest = {
   name: string;
   phone: string;
   service: string;
   services: string[];
+  serviceIds: string[];
+  durationMinutes: number;
   date: string;
   time: string;
   language: "en" | "ar";
@@ -23,7 +32,7 @@ const messages = {
     phone: "Please enter a valid phone number.",
     service: "Please enter the service you would like.",
     date: "Please choose a valid appointment date.",
-    time: "Please choose a valid appointment time.",
+    time: "Please choose an hourly start time that fits the selected services before closing.",
     language: "Please refresh the page and try again.",
     future: "Please choose a future date and time.",
   },
@@ -33,7 +42,7 @@ const messages = {
     phone: "يرجى إدخال رقم هاتف صحيح.",
     service: "يرجى إدخال الخدمة التي ترغبين بها.",
     date: "يرجى اختيار تاريخ موعد صحيح.",
-    time: "يرجى اختيار وقت موعد صحيح.",
+    time: "يرجى اختيار وقت بدء بالساعة يسمح بإنهاء الخدمات قبل الإغلاق.",
     language: "يرجى تحديث الصفحة والمحاولة مرة أخرى.",
     future: "يرجى اختيار تاريخ ووقت في المستقبل.",
   },
@@ -54,9 +63,13 @@ export function validateAppointmentRequest(value: unknown): ValidationResult {
     : typeof input.service === "string"
       ? [input.service.trim()]
       : [];
+  const serviceIds = Array.isArray(input.serviceIds)
+    ? input.serviceIds.filter((serviceId): serviceId is string => typeof serviceId === "string")
+    : [];
   const service = services.join(", ");
   const date = typeof input.date === "string" ? input.date : "";
   const time = typeof input.time === "string" ? input.time : "";
+  const durationMinutes = getAppointmentDuration(serviceIds);
 
   if (name.length < 2 || name.length > 80) {
     return { valid: false, message: error.name };
@@ -68,7 +81,11 @@ export function validateAppointmentRequest(value: unknown): ValidationResult {
     services.length < 1 ||
     services.length > 19 ||
     services.some((selected) => selected.length < 2 || selected.length > 100) ||
-    new Set(services).size !== services.length
+    new Set(services).size !== services.length ||
+    serviceIds.length !== services.length ||
+    new Set(serviceIds).size !== serviceIds.length ||
+    serviceIds.some((serviceId) => !Object.hasOwn(serviceDurations, serviceId)) ||
+    durationMinutes === null
   ) {
     return { valid: false, message: error.service };
   }
@@ -76,6 +93,15 @@ export function validateAppointmentRequest(value: unknown): ValidationResult {
     return { valid: false, message: error.date };
   }
   if (!TIME_PATTERN.test(time)) {
+    return { valid: false, message: error.time };
+  }
+  const startMinutes = timeToMinutes(time);
+  if (
+    startMinutes % 60 !== 0 ||
+    startMinutes < OPENING_MINUTES ||
+    startMinutes >= CLOSING_MINUTES ||
+    startMinutes + durationMinutes > CLOSING_MINUTES
+  ) {
     return { valid: false, message: error.time };
   }
   if (!language) {
@@ -110,6 +136,6 @@ export function validateAppointmentRequest(value: unknown): ValidationResult {
 
   return {
     valid: true,
-    data: { name, phone, service, services, date, time, language },
+    data: { name, phone, service, services, serviceIds, durationMinutes, date, time, language },
   };
 }
