@@ -31,6 +31,7 @@ export async function GET(request: Request) {
     }[] = [];
 
     for (const appointment of appointments.docs) {
+      if (appointment.get("status") === "cancelled") continue;
       const date = appointment.get("date");
       const time = appointment.get("time");
       if (typeof date === "string" && DATE_PATTERN.test(date) && typeof time === "string" && TIME_PATTERN.test(time)) {

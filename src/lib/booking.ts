@@ -8,6 +8,7 @@ import {
 export type AppointmentRequest = {
   name: string;
   phone: string;
+  email: string;
   service: string;
   services: string[];
   serviceIds: string[];
@@ -24,12 +25,14 @@ type ValidationResult =
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 const PHONE_PATTERN = /^\+?[0-9()\s-]{8,20}$/;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const messages = {
   en: {
     invalidRequest: "Please check the appointment details.",
     name: "Please enter a name between 2 and 80 characters.",
     phone: "Please enter a valid phone number.",
+    email: "Please enter a valid email address.",
     service: "Please enter the service you would like.",
     date: "Please choose a valid appointment date.",
     time: "Please choose an hourly start time that fits the selected services before closing.",
@@ -40,6 +43,7 @@ const messages = {
     invalidRequest: "يرجى التحقق من تفاصيل الموعد.",
     name: "يرجى إدخال اسم يتراوح بين حرفين و80 حرفًا.",
     phone: "يرجى إدخال رقم هاتف صحيح.",
+    email: "يرجى إدخال بريد إلكتروني صحيح.",
     service: "يرجى إدخال الخدمة التي ترغبين بها.",
     date: "يرجى اختيار تاريخ موعد صحيح.",
     time: "يرجى اختيار وقت بدء بالساعة يسمح بإنهاء الخدمات قبل الإغلاق.",
@@ -58,6 +62,7 @@ export function validateAppointmentRequest(value: unknown): ValidationResult {
 
   const name = typeof input.name === "string" ? input.name.trim() : "";
   const phone = typeof input.phone === "string" ? input.phone.trim() : "";
+  const email = typeof input.email === "string" ? input.email.trim() : "";
   const services = Array.isArray(input.services)
     ? input.services.map((service) => (typeof service === "string" ? service.trim() : ""))
     : typeof input.service === "string"
@@ -76,6 +81,9 @@ export function validateAppointmentRequest(value: unknown): ValidationResult {
   }
   if (!PHONE_PATTERN.test(phone)) {
     return { valid: false, message: error.phone };
+  }
+  if (email.length > 254 || !EMAIL_PATTERN.test(email)) {
+    return { valid: false, message: error.email };
   }
   if (
     services.length < 1 ||
@@ -136,6 +144,6 @@ export function validateAppointmentRequest(value: unknown): ValidationResult {
 
   return {
     valid: true,
-    data: { name, phone, service, services, serviceIds, durationMinutes, date, time, language },
+    data: { name, phone, email, service, services, serviceIds, durationMinutes, date, time, language },
   };
 }

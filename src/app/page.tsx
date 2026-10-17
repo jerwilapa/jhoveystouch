@@ -66,6 +66,9 @@ const copy = {
     namePlaceholder: "e.g. Sara Ahmed",
     phone: "Phone number",
     phonePlaceholder: "+966 5X XXX XXXX",
+    email: "Email address",
+    emailPlaceholder: "you@example.com",
+    emailHint: "We'll email you when your appointment is confirmed.",
     service: "What would you like done?",
     date: "Preferred date",
     time: "Preferred time",
@@ -136,6 +139,9 @@ const copy = {
     namePlaceholder: "مثال: سارة أحمد",
     phone: "رقم الهاتف",
     phonePlaceholder: "+966 5X XXX XXXX",
+    email: "البريد الإلكتروني",
+    emailPlaceholder: "you@example.com",
+    emailHint: "سنرسل لكِ رسالة عند تأكيد موعدكِ.",
     service: "ما الخدمة التي ترغبين بها؟",
     date: "التاريخ المناسب",
     time: "الوقت المناسب",
@@ -257,6 +263,7 @@ export default function Home() {
   const [details, setDetails] = useState({
     name: "",
     phone: "",
+    email: "",
     services: [] as string[],
     date: "",
     time: "",
@@ -544,6 +551,7 @@ export default function Home() {
     const appointment = {
       name: details.name,
       phone: details.phone,
+      email: details.email,
       service: details.services.map(getServiceLabel).join(", "),
       services: details.services.map(getServiceLabel),
       serviceIds: details.services,
@@ -721,6 +729,21 @@ export default function Home() {
                       value={details.phone}
                       onChange={updateDetail}
                     />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="email">{t.email}</label>
+                    <input
+                      autoComplete="email"
+                      id="email"
+                      name="email"
+                      type="email"
+                      placeholder={t.emailPlaceholder}
+                      required
+                      maxLength={254}
+                      value={details.email}
+                      onChange={updateDetail}
+                    />
+                    <small className="email-field-hint">{t.emailHint}</small>
                   </div>
                   <div className="field service-field">
                     <span className="field-label">{t.service}</span>
